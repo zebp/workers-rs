@@ -22,12 +22,12 @@ type AsyncHandlerFn<'a, D> =
 /// contain a single "id" key.
 pub type RouteParams = HashMap<String, String>;
 
-enum Handler<'a, D> {
+enum Handler<'a, D: Clone + 'static> {
     Async(AsyncHandlerFn<'a, D>),
     Sync(HandlerFn<D>),
 }
 
-impl<D> Clone for Handler<'_, D> {
+impl<D: Clone + 'static> Clone for Handler<'_, D> {
     fn clone(&self) -> Self {
         match self {
             Self::Async(rc) => Self::Async(rc.clone()),
@@ -39,23 +39,23 @@ impl<D> Clone for Handler<'_, D> {
 type HandlerSet<'a, D> = [Option<Handler<'a, D>>; 9];
 
 /// A path-based HTTP router supporting exact-match or wildcard placeholders and shared data.
-pub struct Router<'a, D> {
+pub struct Router<'a, D: Clone + 'static> {
     handlers: Node<HandlerSet<'a, D>>,
-    data: Option<D>,
+    data: D,
 }
 
 /// Container for a route's parsed parameters, data, and environment bindings from the Runtime (such
 /// as KV Stores, Durable Objects, Variables, and Secrets).
-pub struct RouteContext<D> {
-    data: Option<D>,
+pub struct RouteContext<D: Clone + 'static> {
+    data: D,
     env: Env,
     params: RouteParams,
 }
 
-impl<D> RouteContext<D> {
-    /// Get a reference to the generic associated data provided to the `Router`.
-    pub fn data(&self) -> Option<&D> {
-        self.data.as_ref()
+impl<D: Clone + 'static> RouteContext<D> {
+    /// Get the generic associated data provided to the `Router`.
+    pub fn data(&self) -> D {
+        self.data.clone()
     }
 
     /// Get the `Env` for this Worker. Typically users should opt for the `secret`, `var`, `kv` and
@@ -90,13 +90,18 @@ impl<D> RouteContext<D> {
     }
 }
 
-impl<'a, D: 'static> Router<'a, D> {
+impl Router<'_, ()> {
+    pub fn new() -> Self {
+        Self::with_data(())
+    }
+}
+
+impl<'a, D: Clone + 'static> Router<'a, D> {
     /// Construct a new `Router`, with arbitrary data that will be available to your various routes.
-    /// If no data is needed, provide any valid data. The unit type `()` is a good option.
-    pub fn new(data: D) -> Self {
+    pub fn with_data(data: D) -> Self {
         Self {
             handlers: Node::new(),
-            data: Some(data),
+            data,
         }
     }
 
@@ -210,17 +215,8 @@ impl<'a, D: 'static> Router<'a, D> {
 
 type NodeWithHandlers<'a, D> = Node<[Option<Handler<'a, D>>; 9]>;
 
-impl<'a, D: 'static> Router<'a, D> {
-    fn split(self) -> (NodeWithHandlers<'a, D>, Option<D>) {
+impl<'a, D: Clone + 'static> Router<'a, D> {
+    fn split(self) -> (NodeWithHandlers<'a, D>, D) {
         (self.handlers, self.data)
-    }
-}
-
-impl<D> Default for Router<'_, D> {
-    fn default() -> Self {
-        Self {
-            handlers: Node::new(),
-            data: None,
-        }
     }
 }
