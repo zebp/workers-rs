@@ -48,20 +48,17 @@ use worker::*;
 
 #[event(fetch)]
 pub async fn main(req: Request, env: Env) -> Result<Response> {
-    
-    // Create an instance of the Router, and pass it some shared data to be used within routes.
-    // In this case, `()` is used for "no data" so the type information is set for the generic used.
-    // Access the shared data in your routes using the `ctx.data()` method.
-    let router = Router::new(());
-
-    // useful for JSON APIs
-    #[derive(Deserialize, Serialize)]
-    struct Account {
-        id: u64,
-        // ...
-    }
-    router
+    // create a router to conveniently match request paths, or if any shared data is needed, use 
+    // Router::with_data(D) and access it with ctx.data() from within your route
+    Router::new()
         .get_async("/account/:id", |_req, ctx| async move {
+            // useful for JSON APIs
+            #[derive(Deserialize, Serialize)]
+            struct Account {
+                id: u64,
+                // ...
+            }
+
             if let Some(id) = ctx.param("id") {
                 let accounts = ctx.kv("ACCOUNTS")?;
                 return match accounts.get(id).await? {
@@ -148,7 +145,7 @@ use worker::*;
 pub async fn main(req: Request, env: Env) -> Result<Response> {
     utils::set_panic_hook();
 
-    let router = Router::new(()); 
+    let router = Router::new(); 
 
     router
         .on_async("/durable", |_req, ctx| async move {
@@ -219,6 +216,10 @@ impl DurableObject for Chatroom {
 
 You'll need to "migrate" your worker script when it's published so that it is aware of this new 
 Durable Object, and include a binding in your `wrangler.toml`.
+
+[Refer to the current documentation](https://developers.cloudflare.com/workers/learning/using-durable-objects#configuring-durable-object-bindings) 
+for Durable Object migrations.
+
 
 - Include the Durable Object binding type in you `wrangler.toml` file:
 

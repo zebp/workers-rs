@@ -38,23 +38,15 @@ struct FileSize {
     size: u32,
 }
 
+#[derive(Clone)]
 struct SomeSharedData {
     regex: regex::Regex,
-    cloudflare_api_client: Client,
+    cloudflare_api_client: std::rc::Rc<Client>,
 }
 
-fn handle_a_request<D>(req: Request, _ctx: RouteContext<D>) -> Result<Response> {
+fn handle_a_request<D: Clone + 'static>(req: Request, _ctx: RouteContext<D>) -> Result<Response> {
     Response::ok(&format!(
         "req at: {}, located at: {:?}, within: {}",
-        req.path(),
-        req.cf().coordinates().unwrap_or_default(),
-        req.cf().region().unwrap_or("unknown region".into())
-    ))
-}
-
-async fn handle_async_request<D>(req: Request, _ctx: RouteContext<D>) -> Result<Response> {
-    Response::ok(&format!(
-        "[async] req at: {}, located at: {:?}, within: {}",
         req.path(),
         req.cf().coordinates().unwrap_or_default(),
         req.cf().region().unwrap_or("unknown region".into())
@@ -74,24 +66,17 @@ pub async fn main(req: Request, env: Env) -> Result<Response> {
 
     let data = SomeSharedData {
         regex: regex::Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap(),
-        cloudflare_api_client: client,
+        cloudflare_api_client: std::rc::Rc::new(client),
     };
 
-    let router = Router::new(data); // if no data is needed, pass `()` or any other valid data
-
-    router
+    Router::with_data(data) // if no data is needed, use Router::new()
         .get("/request", handle_a_request) // can pass a fn pointer to keep routes tidy
-        .get_async("/async-request", handle_async_request)
         .get("/test-data", |_, ctx| {
             // just here to test data works
-            if let Some(data) = ctx.data() {
-                if data.regex.is_match("2014-01-01") {
-                    Response::ok("data ok")
-                } else {
-                    Response::error("bad match", 500)
-                }
+            if ctx.data().regex.is_match("2014-01-01") {
+                Response::ok("data ok")
             } else {
-                Response::error("no data", 500)
+                Response::error("bad match", 500)
             }
         })
         .post("/headers", |req, _ctx| {
@@ -134,6 +119,8 @@ pub async fn main(req: Request, env: Env) -> Result<Response> {
         })
         .post_async("/is-secret", |mut req, ctx| async move {
             let form = req.form_data().await?;
+            let _d = ctx.data(); // unused, compile-time test for ownership
+
             if let Some(secret) = form.get("secret") {
                 match secret {
                     FormEntry::Field(name) => {
@@ -263,7 +250,6 @@ pub async fn main(req: Request, env: Env) -> Result<Response> {
         .on_async("/cloudflare-api", |_req, ctx| async move {
             let resp = ctx
                 .data()
-                .unwrap()
                 .cloudflare_api_client
                 .request_handle(&cloudflare::endpoints::user::GetUserDetails {})
                 .await
@@ -315,18 +301,6 @@ pub async fn main(req: Request, env: Env) -> Result<Response> {
             console_log!("todo = (title {}) (id {})", todo.title, todo.user_id);
 
             Response::from_bytes(serde_json::to_vec(&todo)?)
-        })
-        .post_async("/nonsense-repeat", |_, ctx| async move {
-            //  just here to test data works
-            if let Some(data) = ctx.data() {
-                if data.regex.is_match("2014-01-01") {
-                    Response::ok("data ok")
-                } else {
-                    Response::error("bad match", 500)
-                }
-            } else {
-                Response::error("no data", 500)
-            }
         })
         .get("/status/:code", |_, ctx| {
             if let Some(code) = ctx.param("code") {
