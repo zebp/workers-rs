@@ -101,12 +101,12 @@ fn copy_generated_code_to_worker_dir() -> Result<()> {
     let snippets_src = PathBuf::from(OUT_DIR).join("snippets");
     let snippets_dest = PathBuf::from(OUT_DIR).join(WORKER_SUBDIR).join("snippets");
 
-    for (src, dest) in [
-        (glue_src, glue_dest),
-        (wasm_src, wasm_dest),
-        (snippets_src, snippets_dest),
-    ] {
-        fs::rename(src, dest)?;
+    fs::rename(glue_src, glue_dest)?;
+    fs::rename(wasm_src, wasm_dest)?;
+
+    // Not every project has snippets, so we must check that the snippets directory exists.
+    if snippets_src.exists() {
+        fs::rename(snippets_src, snippets_dest)?;
     }
 
     Ok(())
