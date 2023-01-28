@@ -13,7 +13,9 @@ readme = "../README.md"
 
 [dependencies]
 async-trait = "0.1.56"
-chrono = { version = "0.4.22", default-features = false, features = ["wasmbind"] }
+chrono = { version = "0.4.22", default-features = false, features = [
+    "wasmbind",
+] }
 chrono-tz = { version = "0.6.3", default-features = false }
 futures-channel = "0.3.21"
 futures-util = { version = "0.3.21", default-features = false }
@@ -34,10 +36,8 @@ worker-sys = { path = "../worker-sys", version = "0.0.8" }
 
 [dependencies.web-sys]
 version = "0.3.57"
-features = [
-    "File",
-    "WorkerGlobalScope"
-]
+features = ["File", "WorkerGlobalScope"]
 
 [features]
 queue = ["worker-macros/queue", "worker-sys/queue"]
+d1 = ["worker-sys/d1"]
