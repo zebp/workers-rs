@@ -62,6 +62,10 @@ impl Body {
     where
         B: http_body::Body<Data = Bytes> + Send + 'static,
     {
+        if body.size_hint().exact().map(|exact| exact == 0).unwrap_or_default() {
+            return Self::none();
+        }
+
         try_downcast(body).unwrap_or_else(|body| {
             Self(BodyInner::Regular(
                 body.map_err(|_| Error::BadEncoding).boxed_unsync(),
